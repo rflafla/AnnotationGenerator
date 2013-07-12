@@ -25,11 +25,11 @@ public class FileGenerator {
 		engine.getTemplate(template);
 		this.template = template;
 	}
-	
+
 	public static FileGenerator create(Class<?> clazz, String templateFile, String extension) {
 		return new FileGenerator(clazz, templateFile, extension);
 	}
-	
+
 	/**
 	 * Get the content of a template
 	 * @param file The file name
@@ -42,31 +42,35 @@ public class FileGenerator {
 			final InputStream os = resource.openStream();
 			int b;
 			while ((b = os.read()) >= 0) {
-				sb.append((char)b);
+				sb.append((char) b);
 			}
 			return sb.toString();
 		} catch (IOException ex) {
 			throw new RuntimeException("The template class.template is not readable");
 		}
 	}
-	
-	public void generate(Map<String, Object> model, Type type) throws IOException {
-		Filer filer = Environment.get().getFiler();
-		Environment.getMessager().printMessage(Kind.NOTE, "create template implementation for " + type.getQualifiedName());
-		FileObject o = filer.createSourceFile(type.getPackage() + "." + type.getName() + extension, type.getElement());
-		Writer w = o.openWriter();
 
+	public void generate(Map<String, Object> model, Type type) {
 		try {
-			final String content = engine.transform(template, model);
-			w.append(content);
-		} catch (RuntimeException e) {
-			e.printStackTrace(new PrintWriter(w));
-			throw e;
-		} finally {
-			w.flush();
-			w.close();
-		}
+			Filer filer = Environment.get().getFiler();
+			Environment.getMessager().printMessage(Kind.NOTE, "create template implementation for " + type.getQualifiedName());
+			FileObject o = filer.createSourceFile(type.getPackage() + "." + type.getName() + extension, type.getElement());
+			Writer w = o.openWriter();
 
-		Environment.getMessager().printMessage(Kind.NOTE, "File finished");
+			try {
+				final String content = engine.transform(template, model);
+				w.append(content);
+			} catch (RuntimeException e) {
+				e.printStackTrace(new PrintWriter(w));
+				throw e;
+			} finally {
+				w.flush();
+				w.close();
+			}
+
+			Environment.getMessager().printMessage(Kind.NOTE, "File finished");
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
 	}
 }
