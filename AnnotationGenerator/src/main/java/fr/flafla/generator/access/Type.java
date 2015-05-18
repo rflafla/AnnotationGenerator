@@ -1,31 +1,34 @@
 package fr.flafla.generator.access;
 
-import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.Stack;
 
-import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.ExecutableType;
 import javax.lang.model.type.TypeMirror;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 
-public class Type {
+public class Type extends AbstractElement<TypeElement> {
 	private final TypeMirror typeMirror;
-	private final TypeElement type;
 	private final String sourcePackage;
 	private final String qualifiedName;
 	private final String name;
 
 	public Type(TypeMirror type) {
+		super((TypeElement) Environment.get().getTypeUtils().asElement(type));
 		this.typeMirror = type;
-		this.type = (TypeElement) Environment.get().getTypeUtils().asElement(type);
-		qualifiedName = this.type.getQualifiedName().toString();
+		qualifiedName = this.elt.getQualifiedName().toString();
 		final int lastPoint = qualifiedName.lastIndexOf('.');
 		sourcePackage = qualifiedName.substring(0, lastPoint);
 		name = qualifiedName.substring(lastPoint + 1);
@@ -40,7 +43,11 @@ public class Type {
 	}
 
 	public TypeElement getElement() {
-		return type;
+		return elt;
+	}
+	
+	public TypeMirror getTypeMirror() {
+		return typeMirror;
 	}
 
 	public String getQualifiedName() {
@@ -48,24 +55,7 @@ public class Type {
 	}
 
 	public String getCompleteName() {
-		try {
-			final DeclaredType simplify = (DeclaredType) TypeSimplifier.simplify(typeMirror, false, null);
-			final List<? extends TypeMirror> args = simplify.getTypeArguments();
-			if (args.size() > 0) {
-				final StringBuilder sb = new StringBuilder();
-				sb.append(qualifiedName).append("<");
-				for (TypeMirror arg : args) {
-					final Element argElt = Environment.asElement(arg);
-					sb.append(argElt);
-				}
-				sb.append(">");
-				return sb.toString();
-			}
-			return qualifiedName;
-		} catch (RuntimeException e) {
-			e.printStackTrace();
-			throw e;
-		}
+		return TypeUtil.getCompleteName(typeMirror);
 	}
 
 	public String getName() {
@@ -75,23 +65,52 @@ public class Type {
 	public String getPackage() {
 		return sourcePackage;
 	}
-
+	
+	public Iterable<? extends Type> getInterfaces() {
+		final List<? extends TypeMirror> interfaces = elt.getInterfaces();
+		final List<Type> result = new ArrayList<Type>();
+		for (final TypeMirror intf : interfaces) {
+			result.add(new Type(intf));
+		}
+		return result;
+	}
+	
 	public Iterable<? extends Method> getMethods() {
-		final HashSet<String> names = new HashSet<String>();
+		final Set<String> names = new HashSet<String>();
 		final List<Method> result = new ArrayList<Method>();
-		TypeElement superClass = type;
+		TypeElement superClass = elt;
+		// Reverse order
+		final Stack<TypeElement> types = new Stack<TypeElement>();
 		while (superClass != null && !superClass.getQualifiedName().toString().equals("java.lang.Object")) {
-			final List<? extends Element> typeElements = superClass.getEnclosedElements();
-			for (Element elt : typeElements) {
-				if (elt instanceof ExecutableElement) {
-					if (names.add(elt.getSimpleName().toString()))
-						result.add(new Method((ExecutableElement) elt));
-				}
-			}
+			types.add(superClass);
 			superClass = (TypeElement) Environment.get().getTypeUtils().asElement(superClass.getSuperclass());
+		}
+		while (!types.isEmpty()) {
+			final TypeElement typeElement = types.pop();
+			extractMethods(names, result, typeElement);
 		}
 
 		return result;
+	}
+	
+	public Iterable<? extends Method> getTypeMethods() {
+		final Set<String> names = new HashSet<String>();
+		final List<Method> result = new ArrayList<Method>();
+		extractMethods(names, result, elt);
+		return result;
+	}
+
+	protected void extractMethods(final Set<String> names, final List<Method> result, TypeElement typeElement) {
+		final List<? extends Element> typeElements = typeElement.getEnclosedElements();
+		for (final Element elt : typeElements) {
+			if (elt instanceof ExecutableElement) {
+				final ExecutableType executableType = (ExecutableType) Environment.get().getTypeUtils().asMemberOf((DeclaredType) typeMirror, elt);
+				final Method method = new Method(executableType, (ExecutableElement) elt);
+				if (names.add(method.getSignature())) {
+					result.add(method);
+				}
+			}
+		}
 	}
 
 	public Iterable<? extends Method> getGetter() {
@@ -102,21 +121,36 @@ public class Type {
 			}
 		});
 	}
+
+	public boolean isAssignable(TypeMirror superClass) {
+		return Environment.get().getTypeUtils().isAssignable(typeMirror, superClass);
+	}
 	
-	public boolean has(Class<? extends Annotation> annotation) {
-		return type.getAnnotation(annotation) != null;
-	}
-
-	public <A extends Annotation> fr.flafla.generator.access.Annotation<A> get(Class<A> annotation) {
-		final List<? extends AnnotationMirror> annotationMirrors = type.getAnnotationMirrors();
-		for (AnnotationMirror mirror : annotationMirrors) {
-			if (mirror.getAnnotationType().asElement().toString().equals(annotation.getName())) {
-				return new fr.flafla.generator.access.Annotation<A>(mirror);
+	public Iterable<Field> getFields() {
+		final List<Field> result = Lists.newArrayList();
+		TypeElement superType = elt;
+		while (superType != null && !"java.lang.Object".equals(superType.getSimpleName().toString())) {
+			for (final Element element : superType.getEnclosedElements()) {
+				if (element instanceof VariableElement) {
+					// Get the field
+					final VariableElement field = (VariableElement) element;
+					if (field.getModifiers().contains(javax.lang.model.element.Modifier.STATIC))
+						continue;
+					
+					result.add(new Field(field, field.asType()));
+				}
 			}
+			
+			superType = (TypeElement) Environment.get().getTypeUtils().asElement(superType.getSuperclass());
 		}
-		return null;
+		
+		return result;
 	}
 
+	public boolean isEnum() {
+		return elt.getKind() == ElementKind.ENUM;
+	}
+	
 	@Override
 	public boolean equals(Object obj) {
 		if (obj instanceof Type)

@@ -1,29 +1,29 @@
 package fr.flafla.generator.access;
 
-import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.Modifier;
+import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.ExecutableType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 
-public class Method {
-	protected final ExecutableElement elt;
+public class Method extends AbstractElement<ExecutableElement> {
 	protected final ExecutableType type;
+	private List<Parameter> parameters;
 
-	public Method(ExecutableElement elt) {
-		this.type = (ExecutableType) elt.asType();
-		this.elt = elt;
+	public Method(ExecutableType type, ExecutableElement elt) {
+		super(elt);
+		this.type = type;
 	}
 
 	public Method(Method method) {
+		super(method.elt);
 		this.type = method.type;
-		this.elt = method.elt;
 	}
 
 	public String getName() {
@@ -33,20 +33,49 @@ public class Method {
 	public String getDocument() {
 		try {
 			return Environment.get().getElementUtils().getDocComment(elt);
-		} catch (RuntimeException e) {
+		} catch (final RuntimeException e) {
 			e.printStackTrace();
 			throw e;
 		}
 	}
 
 	public Iterable<? extends Parameter> getParameters() {
-		final List<? extends TypeMirror> parameters = type.getParameterTypes();
-		final List<? extends VariableElement> eltParameters = elt.getParameters();
-		final List<Parameter> result = new ArrayList<Parameter>();
-		for (int i = 0; i < eltParameters.size(); i++) {
-			VariableElement elt = eltParameters.get(i);
-			final TypeMirror mirror = parameters.get(i);
-			result.add(new Parameter((DeclaredType) mirror, elt.getSimpleName().toString()));
+		if (this.parameters == null) {
+			final List<? extends TypeMirror> parameters = type.getParameterTypes();
+			final List<? extends VariableElement> eltParameters = elt.getParameters();
+			this.parameters = new ArrayList<Parameter>(parameters.size());
+			for (int i = 0; i < eltParameters.size(); i++) {
+				final VariableElement elt = eltParameters.get(i);
+				final TypeMirror mirror = parameters.get(i);
+				this.parameters.add(new Parameter(elt, mirror, mirror.getKind(), elt.getSimpleName().toString()));
+			}
+		}
+		return this.parameters;
+	}
+
+	public List<Type> getThrows() {
+		final List<? extends TypeMirror> throwsType = type.getThrownTypes();
+		final List<Type> result = new ArrayList<Type>(throwsType.size());
+		for (int i = 0; i < throwsType.size(); i++) {
+			result.add(new Type(throwsType.get(i)));
+		}
+		return result;
+	}
+
+	public List<Type> getThrowsAndRuntime() {
+		final TypeMirror runtimeExceptionType = Environment.get().getElementUtils().getTypeElement("java.lang.RuntimeException").asType();
+
+		final List<? extends TypeMirror> throwsType = type.getThrownTypes();
+		final List<Type> result = new ArrayList<Type>(throwsType.size());
+		boolean withRuntime = true;
+		for (int i = 0; i < throwsType.size(); i++) {
+			final TypeMirror throwType = throwsType.get(i);
+			result.add(new Type(throwType));
+			if (withRuntime && Environment.get().getTypeUtils().isAssignable(runtimeExceptionType, throwType))
+				withRuntime = false;
+		}
+		if (withRuntime) {
+			result.add(new Type(runtimeExceptionType));
 		}
 		return result;
 	}
@@ -59,31 +88,38 @@ public class Method {
 		return new Type(type).getCompleteName();
 	}
 
-	public String getReturnType() {
-		final TypeMirror type = elt.getReturnType();
-		switch (type.getKind()) {
-		case VOID:
-			return "void";
-		case INT:
-			return "int";
-		case DOUBLE:
-			return "double";
-		case BYTE:
-			return "byte";
-		case BOOLEAN:
-			return "boolean";
-		case FLOAT:
-			return "float";
-		case LONG:
-			return "long";
-		case SHORT:
-			return "short";
-		case CHAR:
-			return "char";
-		default:
-			return new Type(type).getCompleteName();
-		}
+	public boolean getHasResult() {
+		return elt.getReturnType().getKind() != TypeKind.VOID;
+	}
 
+	public boolean getIsRealMethod() {
+		return !getIsConstructor();
+	}
+
+	public boolean getIsConstructor() {
+		return "<init>".equals(getName());
+	}
+
+	public String getReturnType() {
+		try {
+			final TypeMirror returnType = type.getReturnType();
+			return TypeUtil.getTypeName((DeclaredType) elt.getEnclosingElement().asType(), returnType);
+		} catch (final RuntimeException e) {
+			System.err.println("error on method " + getName());
+			e.printStackTrace();
+			throw e;
+		}
+	}
+	
+	public String getReturnTypeRaw() {
+		try {
+			final TypeMirror returnType = type.getReturnType();
+			return TypeUtil.getTypeNameRaw((DeclaredType) elt.getEnclosingElement().asType(), returnType);
+		} catch (final RuntimeException e) {
+			System.err.println("error on method " + getName());
+			e.printStackTrace();
+			throw e;
+		}
 	}
 
 	public String getField() {
@@ -98,23 +134,51 @@ public class Method {
 		try {
 			final String field = getField();
 			return field.replaceAll("([A-Z])", "_$1").toUpperCase();
-		} catch (RuntimeException e) {
+		} catch (final RuntimeException e) {
 			e.printStackTrace();
 			throw e;
 		}
 	}
 
-	public boolean has(Class<? extends Annotation> annotation) {
-		return elt.getAnnotation(annotation) != null;
+	public boolean isSubsignature(ExecutableType method) {
+		final ExecutableElement methodElement = (ExecutableElement) Environment.get().getTypeUtils().asElement(method);
+		return Environment.get().getElementUtils().overrides(elt, methodElement, (TypeElement) elt.getEnclosingElement());
+		//				return Environment.get().getTypeUtils().isSubsignature(type, method);
 	}
 
-	public <A extends Annotation> fr.flafla.generator.access.Annotation<A> get(Class<A> annotation) {
-		final List<? extends AnnotationMirror> annotationMirrors = elt.getAnnotationMirrors();
-		for (AnnotationMirror mirror : annotationMirrors) {
-			if (mirror.getAnnotationType().asElement().toString().equals(annotation.getName())) {
-				return new fr.flafla.generator.access.Annotation<A>(mirror);
+	public boolean getIsOverridable() {
+		return getIsRealMethod() && getIsPublic() && !getIsStatic() && !getIsFinal();
+	}
+
+	public boolean getIsPublic() {
+		return elt.getModifiers().contains(Modifier.PUBLIC);
+	}
+
+	public boolean getIsStatic() {
+		return elt.getModifiers().contains(Modifier.STATIC);
+	}
+
+	public boolean getIsFinal() {
+		return elt.getModifiers().contains(Modifier.FINAL);
+	}
+
+	public String getSignature() {
+		final StringBuilder sb = new StringBuilder(getName());
+		sb.append('(');
+		boolean notFirst = false;
+		for (final Parameter parameter : getParameters()) {
+			if (notFirst) {
+				sb.append(',');
+			} else {
+				notFirst = true;
 			}
+			sb.append(parameter.getTypeName());
 		}
-		return null;
+		sb.append(')');
+		return sb.toString();
+	}
+	
+	public Type getEnclosingType() {
+		return new Type(elt.getEnclosingElement().asType());
 	}
 }

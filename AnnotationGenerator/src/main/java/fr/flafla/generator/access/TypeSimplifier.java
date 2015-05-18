@@ -13,12 +13,39 @@ import javax.lang.model.type.TypeVariable;
 import javax.lang.model.type.WildcardType;
 import javax.lang.model.util.SimpleTypeVisitor6;
 
+/**
+ * Utility type for reducing complex type declarations to ones suitable for
+ * determining assignability based on RequestFactory's type-mapping semantics.
+ * <p>
+ * Rules:
+ * <ul>
+ * <li>primitive type {@code ->} boxed type (optional)</li>
+ * <li>{@code void -> Void} (optional)</li>
+ * <li>{@code <T extends Foo> -> Foo}</li>
+ * <li>{@code ? extends Foo -> Foo}</li>
+ * <li>{@code Foo<complex type> -> Foo<simplified type>}</li>
+ * </ul>
+ */
 public class TypeSimplifier extends SimpleTypeVisitor6<TypeMirror, Environment> {
+
 	public static TypeMirror simplify(TypeMirror toBox, boolean boxPrimitives, Environment state) {
 		if (toBox == null) {
 			return null;
 		}
 		return toBox.accept(new TypeSimplifier(boxPrimitives), state);
+	}
+
+	// TODO use java 8 IntersectionType directly (jdk8 required)
+	private static Class<?> intersectionClass;
+	static {
+		try {
+			intersectionClass = Class.forName("javax.lang.model.type.IntersectionType");
+		} catch (final ClassNotFoundException e) {
+		}
+	}
+
+	private static boolean isIntersection(TypeMirror type) {
+		return intersectionClass != null && intersectionClass.isAssignableFrom(type.getClass());
 	}
 
 	private final boolean boxPrimitives;
@@ -33,8 +60,10 @@ public class TypeSimplifier extends SimpleTypeVisitor6<TypeMirror, Environment> 
 			return x;
 		}
 		final List<TypeMirror> newArgs = new ArrayList<TypeMirror>(x.getTypeArguments().size());
-		for (TypeMirror original : x.getTypeArguments()) {
+		for (final TypeMirror original : x.getTypeArguments()) {
+			// Are we looking at a self-parameterized type like Foo<T extends Foo<T>>?
 			if (original.getKind().equals(TypeKind.TYPEVAR) && Environment.get().getTypeUtils().isAssignable(original, x)) {
+				// If so, return a raw type
 				return Environment.get().getTypeUtils().getDeclaredType((TypeElement) x.asElement());
 			} else {
 				newArgs.add(original.accept(this, state));
@@ -62,6 +91,13 @@ public class TypeSimplifier extends SimpleTypeVisitor6<TypeMirror, Environment> 
 
 	@Override
 	public TypeMirror visitTypeVariable(TypeVariable x, Environment state) {
+		if (x.equals(x.getUpperBound())) {
+			// See comment in TransportableTypeVisitor
+			return Environment.get().getTypeUtils().erasure(x);
+		}
+		if (isIntersection(x.getUpperBound())) {
+			return Environment.get().getTypeUtils().erasure(x);
+		}
 		return x.getUpperBound().accept(this, state);
 	}
 

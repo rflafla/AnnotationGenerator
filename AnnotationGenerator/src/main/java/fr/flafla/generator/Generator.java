@@ -8,16 +8,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import javax.annotation.processing.AbstractProcessor;
+import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
-import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.TypeElement;
-
-import fr.flafla.generator.access.Environment;
 
 /**
  * This is an abstract generator to help source code generation
@@ -25,26 +21,16 @@ import fr.flafla.generator.access.Environment;
  * @author rflanet
  *
  */
-public abstract class Generator extends AbstractProcessor {
+public abstract class Generator {
+	/**
+	 * This is the main method
+	 * @param processingEnv Environment provided by java processor mechanism
+	 * @param consoleLogger Logger
+	 * @param elements Elements found with the annotation
+	 * @throws Exception All exception could be thrown
+	 */
+	public abstract void process(ProcessingEnvironment processingEnv, Messager consoleLogger, Set<? extends Element> elements) throws Exception;
 	
-	@Override
-	public synchronized void init(ProcessingEnvironment processingEnv) {
-		super.init(processingEnv);
-		Environment.set(processingEnv, processingEnv.getMessager());
-	}
-	
-	@Override
-	public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
-		for (TypeElement annotation : annotations) {
-			final Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(annotation);
-			process(elements);
-		}
-		
-		return false;
-	}
-	
-	protected abstract void process(Set<? extends Element> elements);
-
 	/**
 	 * Get the content of a template
 	 * @param file The file name
@@ -60,7 +46,7 @@ public abstract class Generator extends AbstractProcessor {
 				sb.append((char)b);
 			}
 			return sb.toString();
-		} catch (IOException ex) {
+		} catch (final IOException ex) {
 			throw new RuntimeException("The template class.template is not readable");
 		}
 	}
@@ -74,10 +60,10 @@ public abstract class Generator extends AbstractProcessor {
 	 */
 	protected String generate(String template, Map<String, String> datas) {
 		String result = template;
-		for (Map.Entry<String, String> e : datas.entrySet()) {
+		for (final Map.Entry<String, String> e : datas.entrySet()) {
 			try {
 				result = result.replace("#{"+e.getKey()+"}", e.getValue());
-			} catch (IllegalArgumentException ex) {
+			} catch (final IllegalArgumentException ex) {
 				throw new RuntimeException("Error for key "+e.getKey(), ex);
 			}
 		}
@@ -92,7 +78,7 @@ public abstract class Generator extends AbstractProcessor {
 	 * @return The type
 	 */
 	protected String getType(ProcessingEnvironment processingEnv, Element element) {
-		Element typeFieldElement = processingEnv.getTypeUtils().asElement(element.asType());
+		final Element typeFieldElement = processingEnv.getTypeUtils().asElement(element.asType());
 		
 		String typeField;
 		if (typeFieldElement == null) 
@@ -115,11 +101,11 @@ public abstract class Generator extends AbstractProcessor {
 	protected <H> H getAnnotationValue(Element element, Class<?> annotationClass, String valueName) {
 		// Get all annotations for this element
 		final List<? extends AnnotationMirror> annotations = element.getAnnotationMirrors();
-		for (AnnotationMirror annotation : annotations) {
+		for (final AnnotationMirror annotation : annotations) {
 			// Check the type of the annotation
 			if (annotation.getAnnotationType().asElement().toString().equals(annotationClass.getName())) {
 				// Get the value for valueName
-				for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> v : annotation.getElementValues().entrySet()) {
+				for (final Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> v : annotation.getElementValues().entrySet()) {
 					if (v.getKey().getSimpleName().toString().equals(valueName)) {
 						return (H) v.getValue().getValue();
 					}
@@ -135,7 +121,7 @@ public abstract class Generator extends AbstractProcessor {
 		List<String> result = null;
 		if (value instanceof List<?>) {
 			result = new ArrayList<String>();
-			for (Object string : (List<?>)value) {
+			for (final Object string : (List<?>)value) {
 				final String s = string.toString();
 				// Remove " in first and last position
 				result.add(s.substring(1, s.length()-1));
@@ -148,8 +134,8 @@ public abstract class Generator extends AbstractProcessor {
 	}
 		
 	protected String join(List<String> strings, String split) {
-		StringBuilder result = new StringBuilder();
-		for (String string : strings) {
+		final StringBuilder result = new StringBuilder();
+		for (final String string : strings) {
 			if (result.length() > 0)
 				result.append(split);
 			result.append(string);
