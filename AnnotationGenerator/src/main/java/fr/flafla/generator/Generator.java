@@ -8,12 +8,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import javax.annotation.processing.Messager;
+import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.ProcessingEnvironment;
+import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.TypeElement;
+
+import fr.flafla.generator.access.Environment;
 
 /**
  * This is an abstract generator to help source code generation
@@ -21,16 +25,26 @@ import javax.lang.model.element.ExecutableElement;
  * @author rflanet
  *
  */
-public abstract class Generator {
-	/**
-	 * This is the main method
-	 * @param processingEnv Environment provided by java processor mechanism
-	 * @param consoleLogger Logger
-	 * @param elements Elements found with the annotation
-	 * @throws Exception All exception could be thrown
-	 */
-	public abstract void process(ProcessingEnvironment processingEnv, Messager consoleLogger, Set<? extends Element> elements) throws Exception;
+public abstract class Generator extends AbstractProcessor {
 	
+	@Override
+	public synchronized void init(ProcessingEnvironment processingEnv) {
+		super.init(processingEnv);
+		Environment.set(processingEnv, processingEnv.getMessager());
+	}
+	
+	@Override
+	public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+		for (final TypeElement annotation : annotations) {
+			final Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(annotation);
+			process(elements);
+		}
+		
+		return false;
+	}
+	
+	protected abstract void process(Set<? extends Element> elements);
+
 	/**
 	 * Get the content of a template
 	 * @param file The file name

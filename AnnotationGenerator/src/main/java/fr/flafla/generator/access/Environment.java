@@ -26,7 +26,7 @@ public class Environment {
 	/**
 	 * Utility method to look up raw types from class literals.
 	 */
-	public DeclaredType findType(Class<?> clazz) {
+	public static DeclaredType findType(Class<?> clazz) {
 		return get().getTypeUtils().getDeclaredType(get().getElementUtils().getTypeElement(clazz.getCanonicalName()));
 	}
 	

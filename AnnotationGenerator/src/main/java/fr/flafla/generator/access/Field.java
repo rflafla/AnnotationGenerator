@@ -32,13 +32,7 @@ public class Field extends AbstractElement<VariableElement> {
 	}
 	
 	public String getTypeName() {
-		try {
-			return TypeUtil.getTypeName((DeclaredType) elt.getEnclosingElement().asType(), type);
-		} catch (final RuntimeException e) {
-			System.err.println(elt.getKind());
-			e.printStackTrace();
-			throw e;
-		}
+		return TypeUtil.getTypeName((DeclaredType) elt.getEnclosingElement().asType(), type);
 	}
 	
 

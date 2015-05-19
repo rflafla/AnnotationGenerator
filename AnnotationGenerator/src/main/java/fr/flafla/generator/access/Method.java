@@ -31,12 +31,7 @@ public class Method extends AbstractElement<ExecutableElement> {
 	}
 
 	public String getDocument() {
-		try {
-			return Environment.get().getElementUtils().getDocComment(elt);
-		} catch (final RuntimeException e) {
-			e.printStackTrace();
-			throw e;
-		}
+		return Environment.get().getElementUtils().getDocComment(elt);
 	}
 
 	public Iterable<? extends Parameter> getParameters() {
@@ -45,7 +40,7 @@ public class Method extends AbstractElement<ExecutableElement> {
 			final List<? extends VariableElement> eltParameters = elt.getParameters();
 			this.parameters = new ArrayList<Parameter>(parameters.size());
 			for (int i = 0; i < eltParameters.size(); i++) {
-				final VariableElement elt = eltParameters.get(i);
+				VariableElement elt = eltParameters.get(i);
 				final TypeMirror mirror = parameters.get(i);
 				this.parameters.add(new Parameter(elt, mirror, mirror.getKind(), elt.getSimpleName().toString()));
 			}
@@ -104,7 +99,7 @@ public class Method extends AbstractElement<ExecutableElement> {
 		try {
 			final TypeMirror returnType = type.getReturnType();
 			return TypeUtil.getTypeName((DeclaredType) elt.getEnclosingElement().asType(), returnType);
-		} catch (final RuntimeException e) {
+		} catch (RuntimeException e) {
 			System.err.println("error on method " + getName());
 			e.printStackTrace();
 			throw e;
@@ -115,7 +110,7 @@ public class Method extends AbstractElement<ExecutableElement> {
 		try {
 			final TypeMirror returnType = type.getReturnType();
 			return TypeUtil.getTypeNameRaw((DeclaredType) elt.getEnclosingElement().asType(), returnType);
-		} catch (final RuntimeException e) {
+		} catch (RuntimeException e) {
 			System.err.println("error on method " + getName());
 			e.printStackTrace();
 			throw e;
@@ -134,7 +129,7 @@ public class Method extends AbstractElement<ExecutableElement> {
 		try {
 			final String field = getField();
 			return field.replaceAll("([A-Z])", "_$1").toUpperCase();
-		} catch (final RuntimeException e) {
+		} catch (RuntimeException e) {
 			e.printStackTrace();
 			throw e;
 		}
@@ -166,7 +161,7 @@ public class Method extends AbstractElement<ExecutableElement> {
 		final StringBuilder sb = new StringBuilder(getName());
 		sb.append('(');
 		boolean notFirst = false;
-		for (final Parameter parameter : getParameters()) {
+		for (Parameter parameter : getParameters()) {
 			if (notFirst) {
 				sb.append(',');
 			} else {

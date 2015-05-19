@@ -12,6 +12,9 @@ import javax.tools.Diagnostic.Kind;
 import javax.tools.FileObject;
 
 import com.floreysoft.jmte.Engine;
+import com.floreysoft.jmte.message.DefaultErrorHandler;
+import com.floreysoft.jmte.message.ParseException;
+import com.floreysoft.jmte.token.Token;
 import com.google.common.collect.Maps;
 
 import fr.flafla.generator.GeneratedAnnotation;
@@ -28,15 +31,15 @@ public class FileGenerator {
 		engine.getTemplate(template);
 		this.template = template;
 	}
-	
+
 	public static FileGenerator create(Class<?> clazz, String templateFile, Class<? extends java.lang.annotation.Annotation> annotation) {
 		return create(clazz, templateFile, annotation.getAnnotation(GeneratedAnnotation.class).value());
 	}
-	
+
 	public static FileGenerator create(Class<?> clazz, String templateFile, String extension) {
 		return new FileGenerator(clazz, templateFile, extension);
 	}
-	
+
 	/**
 	 * Get the content of a template
 	 * @param file The file name
@@ -49,14 +52,14 @@ public class FileGenerator {
 			final InputStream os = resource.openStream();
 			int b;
 			while ((b = os.read()) >= 0) {
-				sb.append((char)b);
+				sb.append((char) b);
 			}
 			return sb.toString();
 		} catch (final IOException ex) {
 			throw new RuntimeException("The template class.template is not readable");
 		}
 	}
-	
+
 	public void generate(Map<String, Object> model, Type type) throws IOException {
 		final Filer filer = Environment.get().getFiler();
 		Environment.getMessager().printMessage(Kind.NOTE, "create template implementation for " + type.getQualifiedName());
@@ -67,6 +70,31 @@ public class FileGenerator {
 		try {
 			final Map<String, Object> datas = Maps.newHashMap(model);
 			datas.put("typeName", typeName);
+			engine.setErrorHandler(new DefaultErrorHandler() {
+				@Override
+				public void error(String messageKey, Token token, Map<String, Object> parameters) throws ParseException {
+					try {
+						final StringBuilder msg = new StringBuilder();
+						msg.append(messageKey)
+								.append(" (")
+								.append(token)
+								.append(") ");
+						for (final Map.Entry<String, Object> param : parameters.entrySet()) {
+							msg.append(param.getKey()).append(" = ").append(param.getValue());
+						}
+						msg.append('\n');
+						final Exception exception = (Exception) parameters.get("exception");
+						if (exception != null) {
+							exception.printStackTrace(new PrintWriter(w));
+						}
+						w.append(msg);
+					} catch (final Exception e) {
+						e.printStackTrace();
+					}
+					
+					super.error(messageKey, token, parameters);
+				}
+			});
 			final String content = engine.transform(template, datas);
 			w.append(content);
 		} catch (final RuntimeException e) {

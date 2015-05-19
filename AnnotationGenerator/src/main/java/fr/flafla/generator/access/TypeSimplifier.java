@@ -13,19 +13,6 @@ import javax.lang.model.type.TypeVariable;
 import javax.lang.model.type.WildcardType;
 import javax.lang.model.util.SimpleTypeVisitor6;
 
-/**
- * Utility type for reducing complex type declarations to ones suitable for
- * determining assignability based on RequestFactory's type-mapping semantics.
- * <p>
- * Rules:
- * <ul>
- * <li>primitive type {@code ->} boxed type (optional)</li>
- * <li>{@code void -> Void} (optional)</li>
- * <li>{@code <T extends Foo> -> Foo}</li>
- * <li>{@code ? extends Foo -> Foo}</li>
- * <li>{@code Foo<complex type> -> Foo<simplified type>}</li>
- * </ul>
- */
 public class TypeSimplifier extends SimpleTypeVisitor6<TypeMirror, Environment> {
 
 	public static TypeMirror simplify(TypeMirror toBox, boolean boxPrimitives, Environment state) {
@@ -40,7 +27,7 @@ public class TypeSimplifier extends SimpleTypeVisitor6<TypeMirror, Environment> 
 	static {
 		try {
 			intersectionClass = Class.forName("javax.lang.model.type.IntersectionType");
-		} catch (final ClassNotFoundException e) {
+		} catch (ClassNotFoundException e) {
 		}
 	}
 
@@ -59,8 +46,8 @@ public class TypeSimplifier extends SimpleTypeVisitor6<TypeMirror, Environment> 
 		if (x.getTypeArguments().isEmpty()) {
 			return x;
 		}
-		final List<TypeMirror> newArgs = new ArrayList<TypeMirror>(x.getTypeArguments().size());
-		for (final TypeMirror original : x.getTypeArguments()) {
+		List<TypeMirror> newArgs = new ArrayList<TypeMirror>(x.getTypeArguments().size());
+		for (TypeMirror original : x.getTypeArguments()) {
 			// Are we looking at a self-parameterized type like Foo<T extends Foo<T>>?
 			if (original.getKind().equals(TypeKind.TYPEVAR) && Environment.get().getTypeUtils().isAssignable(original, x)) {
 				// If so, return a raw type
@@ -76,7 +63,7 @@ public class TypeSimplifier extends SimpleTypeVisitor6<TypeMirror, Environment> 
 	@Override
 	public TypeMirror visitNoType(NoType x, Environment state) {
 		if (boxPrimitives) {
-			return state.findType(Void.class);
+			return Environment.findType(Void.class);
 		}
 		return x;
 	}

@@ -29,13 +29,7 @@ public class Parameter extends AbstractElement<VariableElement> {
 	}
 
 	public String getTypeName() {
-		try {
-			return TypeUtil.getTypeName((DeclaredType) elt.getEnclosingElement().getEnclosingElement().asType(), type);
-		} catch (final RuntimeException e) {
-			System.err.println(kind);
-			e.printStackTrace();
-			throw e;
-		}
+		return TypeUtil.getTypeName((DeclaredType) elt.getEnclosingElement().getEnclosingElement().asType(), type);
 	}
 
 	public String getName() {

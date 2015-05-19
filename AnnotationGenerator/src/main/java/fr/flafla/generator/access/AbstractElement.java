@@ -12,11 +12,12 @@ public class AbstractElement<T extends Element> {
 	protected final T elt;
 
 	public AbstractElement(T elt) {
+		assert elt != null;
 		this.elt = elt;
 	}
-	
+
 	public boolean has(Class<? extends Annotation> annotation) {
-		return elt.getAnnotation(annotation) != null;
+		return elt != null && elt.getAnnotation(annotation) != null;
 	}
 
 	public <A extends Annotation> fr.flafla.generator.access.Annotation<A> get(Class<A> annotation) {
@@ -28,7 +29,7 @@ public class AbstractElement<T extends Element> {
 		}
 		return null;
 	}
-	
+
 	@SuppressWarnings("rawtypes")
 	public Iterable<fr.flafla.generator.access.Annotation<?>> getAnnotations() {
 		final List<fr.flafla.generator.access.Annotation<?>> result = Lists.newArrayList();

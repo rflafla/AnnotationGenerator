@@ -60,43 +60,33 @@ public class TypeUtil {
 	}
 	
 	public static String getName(TypeMirror typeMirror) {
-		try {
-			final DeclaredType simplify = (DeclaredType) TypeSimplifier.simplify(typeMirror, false, null);
-			
-			final TypeElement type = (TypeElement) Environment.get().getTypeUtils().asElement(simplify);
-			return type.getQualifiedName().toString();
-		} catch (final RuntimeException e) {
-			e.printStackTrace();
-			throw e;
-		}
+		final DeclaredType simplify = (DeclaredType) TypeSimplifier.simplify(typeMirror, false, null);
+		
+		final TypeElement type = (TypeElement) Environment.get().getTypeUtils().asElement(simplify);
+		return type.getQualifiedName().toString();
 	}
 	public static String getCompleteName(TypeMirror typeMirror) {
-		try {
-			final DeclaredType simplify = (DeclaredType) TypeSimplifier.simplify(typeMirror, false, null);
-			
-			final TypeElement type = (TypeElement) Environment.get().getTypeUtils().asElement(simplify);
-			final String qualifiedName = type.getQualifiedName().toString();
-			
-			final List<? extends TypeMirror> args = simplify.getTypeArguments();
-			if (args.size() > 0) {
-				final StringBuilder sb = new StringBuilder();
-				sb.append(qualifiedName).append("<");
-				boolean notFirst = false;
-				for (final TypeMirror arg : args) {
-					if (notFirst) {
-						sb.append(',');
-					}
-					notFirst = true;
-					final Element argElt = Environment.asElement(arg);
-					sb.append(argElt);
+		final DeclaredType simplify = (DeclaredType) TypeSimplifier.simplify(typeMirror, false, null);
+		
+		final TypeElement type = (TypeElement) Environment.get().getTypeUtils().asElement(simplify);
+		final String qualifiedName = type.getQualifiedName().toString();
+		
+		final List<? extends TypeMirror> args = simplify.getTypeArguments();
+		if (args.size() > 0) {
+			final StringBuilder sb = new StringBuilder();
+			sb.append(qualifiedName).append("<");
+			boolean notFirst = false;
+			for (TypeMirror arg : args) {
+				if (notFirst) {
+					sb.append(',');
 				}
-				sb.append(">");
-				return sb.toString();
+				notFirst = true;
+				final Element argElt = Environment.asElement(arg);
+				sb.append(argElt);
 			}
-			return qualifiedName;
-		} catch (final RuntimeException e) {
-			e.printStackTrace();
-			throw e;
+			sb.append(">");
+			return sb.toString();
 		}
+		return qualifiedName;
 	}
 }
