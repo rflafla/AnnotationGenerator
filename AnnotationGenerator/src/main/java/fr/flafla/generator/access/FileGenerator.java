@@ -6,29 +6,37 @@ import java.io.PrintWriter;
 import java.io.Writer;
 import java.net.URL;
 import java.util.Map;
+import java.util.Properties;
 
 import javax.annotation.processing.Filer;
 import javax.tools.Diagnostic.Kind;
 import javax.tools.FileObject;
 
-import com.floreysoft.jmte.Engine;
-import com.floreysoft.jmte.message.DefaultErrorHandler;
-import com.floreysoft.jmte.message.ParseException;
-import com.floreysoft.jmte.token.Token;
-import com.google.common.collect.Maps;
+import org.apache.velocity.VelocityContext;
+import org.apache.velocity.app.VelocityEngine;
 
 import fr.flafla.generator.GeneratedAnnotation;
 
 public class FileGenerator {
-	private final Engine engine;
+	private final VelocityEngine engine;
 	private final String extension;
 	private final String template;
 
 	public FileGenerator(Class<?> clazz, String templateFile, String extension) {
 		this.extension = extension;
 		final String template = getTemplate(clazz, templateFile);
-		engine = Engine.createCompilingEngine();
-		engine.getTemplate(template);
+		engine = new VelocityEngine();
+		final Properties properties = new Properties();
+		properties.setProperty("runtime.log.logsystem.class", "org.apache.velocity.runtime.log.SystemLogChute");
+		properties.setProperty("resource.manager.class", "org.apache.velocity.runtime.resource.ResourceManagerImpl");
+		try {
+			final Thread thread = Thread.currentThread();
+//			ClassLoader loader = thread.getContextClassLoader();
+			thread.setContextClassLoader(this.getClass().getClassLoader());
+			engine.init(properties);
+		} catch (final Exception e) {
+			throw new RuntimeException(e);
+		}
 		this.template = template;
 	}
 
@@ -42,6 +50,7 @@ public class FileGenerator {
 
 	/**
 	 * Get the content of a template
+	 * 
 	 * @param file The file name
 	 * @return The content
 	 */
@@ -65,44 +74,20 @@ public class FileGenerator {
 		Environment.getMessager().printMessage(Kind.NOTE, "create template implementation for " + type.getQualifiedName());
 		final String typeName = type.getName() + extension;
 		final FileObject o = filer.createSourceFile(type.getPackage() + "." + typeName, type.getElement());
-		final Writer w = o.openWriter();
+		final Writer writer = o.openWriter();
 
 		try {
-			final Map<String, Object> datas = Maps.newHashMap(model);
-			datas.put("typeName", typeName);
-			engine.setErrorHandler(new DefaultErrorHandler() {
-				@Override
-				public void error(String messageKey, Token token, Map<String, Object> parameters) throws ParseException {
-					try {
-						final StringBuilder msg = new StringBuilder();
-						msg.append(messageKey)
-								.append(" (")
-								.append(token)
-								.append(") ");
-						for (final Map.Entry<String, Object> param : parameters.entrySet()) {
-							msg.append(param.getKey()).append(" = ").append(param.getValue());
-						}
-						msg.append('\n');
-						final Exception exception = (Exception) parameters.get("exception");
-						if (exception != null) {
-							exception.printStackTrace(new PrintWriter(w));
-						}
-						w.append(msg);
-					} catch (final Exception e) {
-						e.printStackTrace();
-					}
-					
-					super.error(messageKey, token, parameters);
-				}
-			});
-			final String content = engine.transform(template, datas);
-			w.append(content);
+			final VelocityContext context = new VelocityContext();
+			context.put("typeName", typeName);
+			for (final Map.Entry<String, Object> e : model.entrySet())
+				context.put(e.getKey(), e.getValue());
+			engine.evaluate(context, writer, "<tmp>", template);
 		} catch (final RuntimeException e) {
-			e.printStackTrace(new PrintWriter(w));
+			e.printStackTrace(new PrintWriter(writer));
 			throw e;
 		} finally {
-			w.flush();
-			w.close();
+			writer.flush();
+			writer.close();
 		}
 
 		Environment.getMessager().printMessage(Kind.NOTE, "File finished");

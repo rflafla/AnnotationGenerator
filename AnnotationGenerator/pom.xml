@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>fr.flafla.generator</groupId>
 	<artifactId>AnnotationGenerator</artifactId>
-	<version>0.4-SNAPSHOT</version>
+	<version>0.4</version>
 
 
 	<build>
@@ -22,11 +22,11 @@
 	</build>
 	
 	<dependencies>
-		<!-- JMTE -->
+		<!-- Velocity -->
 		<dependency>
-			<groupId>com.floreysoft</groupId>
-			<artifactId>jmte</artifactId>
-			<version>3.0</version>
+			<groupId>org.apache.velocity</groupId>
+			<artifactId>velocity</artifactId>
+			<version>1.7</version>
 		</dependency>
 		<!-- GUAVA -->
 		<dependency>
